@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Create release if missing
         env:
@@ -29,4 +29,3 @@ jobs:
           else
             gh release create "$TAG_NAME" --title "$TAG_NAME" --generate-notes
           fi
-
