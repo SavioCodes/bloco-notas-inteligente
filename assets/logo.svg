@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-label="Bloco de Notas Inteligente">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffaf0"/>
+      <stop offset="100%" stop-color="#dcebe4"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2f6f5e"/>
+      <stop offset="100%" stop-color="#204b42"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="320" rx="36" fill="url(#bg)"/>
+  <circle cx="820" cy="54" r="92" fill="#f3d28a" opacity="0.55"/>
+  <circle cx="96" cy="260" r="120" fill="#2f6f5e" opacity="0.10"/>
+  <rect x="90" y="62" width="164" height="196" rx="22" fill="url(#card)"/>
+  <rect x="116" y="90" width="112" height="142" rx="12" fill="#fffaf0"/>
+  <rect x="136" y="116" width="74" height="10" rx="5" fill="#2f6f5e"/>
+  <rect x="136" y="145" width="58" height="8" rx="4" fill="#d79a2b"/>
+  <rect x="136" y="171" width="74" height="8" rx="4" fill="#dbcdb6"/>
+  <path d="M220 218l40 42" stroke="#d79a2b" stroke-width="12" stroke-linecap="round"/>
+  <path d="M251 248l32-32" stroke="#d79a2b" stroke-width="12" stroke-linecap="round"/>
+  <text x="310" y="140" fill="#17231f" font-family="Segoe UI, Arial, sans-serif" font-size="52" font-weight="700">Bloco de Notas</text>
+  <text x="310" y="197" fill="#2f6f5e" font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="700">Inteligente</text>
+  <text x="312" y="238" fill="#65716b" font-family="Segoe UI, Arial, sans-serif" font-size="22">Notas locais, busca rapida, tags e lixeira segura.</text>
+</svg>
+

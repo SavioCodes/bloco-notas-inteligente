@@ -1,0 +1,27 @@
+name: Feature request
+description: Sugira uma melhoria
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema essa melhoria resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Como voce imagina a solucao?
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plataforma principal
+      options:
+        - Windows
+        - Linux
+        - Ambas
+        - Nao sei
+
