@@ -1,50 +1,114 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from .backup import BackupManager
 from .db import NotesRepository
 from .intelligence import SmartAnalysis, analyze_note
+from .markdown_preview import MarkdownBlock, parse_markdown
 from .models import Note
+from .security import create_password_record, verify_password
+from .settings import AppSettings, SettingsStore
 
 
-THEME = {
-    "app_bg": "#f4efe6",
-    "panel_bg": "#fffaf0",
-    "panel_alt": "#f9f1df",
-    "ink": "#17231f",
-    "muted": "#65716b",
-    "line": "#dbcdb6",
-    "accent": "#2f6f5e",
-    "accent_dark": "#204b42",
-    "accent_soft": "#dcebe4",
-    "warning": "#b45309",
-    "danger": "#a33a2b",
-    "danger_soft": "#f7ded9",
-    "gold": "#d79a2b",
-    "editor_bg": "#fffdf7",
-    "selection": "#dfeee7",
+THEMES = {
+    "paper": {
+        "name": "Papel/caderno",
+        "app_bg": "#f4efe6",
+        "panel_bg": "#fffaf0",
+        "panel_alt": "#f9f1df",
+        "ink": "#17231f",
+        "muted": "#65716b",
+        "line": "#dbcdb6",
+        "accent": "#2f6f5e",
+        "accent_dark": "#204b42",
+        "accent_soft": "#dcebe4",
+        "warning": "#b45309",
+        "danger": "#a33a2b",
+        "danger_soft": "#f7ded9",
+        "gold": "#d79a2b",
+        "editor_bg": "#fffdf7",
+        "preview_bg": "#fffaf0",
+        "selection": "#dfeee7",
+    },
+    "light": {
+        "name": "Claro",
+        "app_bg": "#eef4f8",
+        "panel_bg": "#ffffff",
+        "panel_alt": "#edf4f7",
+        "ink": "#10202b",
+        "muted": "#5c6b75",
+        "line": "#c9d7de",
+        "accent": "#1f6f8b",
+        "accent_dark": "#14475a",
+        "accent_soft": "#d9edf4",
+        "warning": "#b7791f",
+        "danger": "#b8322a",
+        "danger_soft": "#f8dddd",
+        "gold": "#c58a18",
+        "editor_bg": "#fbfdff",
+        "preview_bg": "#ffffff",
+        "selection": "#d9edf4",
+    },
+    "dark": {
+        "name": "Escuro",
+        "app_bg": "#151a1e",
+        "panel_bg": "#1f262b",
+        "panel_alt": "#283138",
+        "ink": "#edf4f3",
+        "muted": "#a6b4b0",
+        "line": "#3a474f",
+        "accent": "#7cc7a4",
+        "accent_dark": "#4da07d",
+        "accent_soft": "#2d433c",
+        "warning": "#e0aa4f",
+        "danger": "#db6b60",
+        "danger_soft": "#4b2b2b",
+        "gold": "#e0b45b",
+        "editor_bg": "#11171b",
+        "preview_bg": "#181f23",
+        "selection": "#30463e",
+    },
 }
 
+THEME = THEMES["paper"].copy()
+
 ICONS = {
-    "new": "✚",
-    "save": "✓",
-    "search": "⌕",
-    "note": "✎",
-    "trash": "♻",
-    "delete": "×",
-    "restore": "↺",
-    "export": "⇩",
-    "import": "⇧",
-    "spark": "✦",
+    "new": "+",
+    "save": "OK",
+    "search": "?",
+    "note": ">",
+    "trash": "TR",
+    "delete": "X",
+    "restore": "R",
+    "export": "EX",
+    "import": "IN",
+    "spark": "*",
     "tag": "#",
+    "lock": "LOCK",
+    "backup": "BK",
+    "preview": "MD",
 }
 
 
 class SmartNotepadApp:
-    def __init__(self, repository: NotesRepository) -> None:
+    def __init__(
+        self,
+        repository: NotesRepository,
+        settings_store: SettingsStore | None = None,
+        backup_manager: BackupManager | None = None,
+    ) -> None:
         self.repository = repository
+        self.settings_store = settings_store
+        self.settings = settings_store.load() if settings_store else AppSettings()
+        self.backup_manager = backup_manager
+        self.theme_name = self.settings.theme_name if self.settings.theme_name in THEMES else "paper"
+        self._set_theme(self.theme_name, persist=False)
         self.root = tk.Tk()
         self.root.title("Bloco de Notas Inteligente")
         self.root.geometry("1220x780")
@@ -58,8 +122,12 @@ class SmartNotepadApp:
         self.save_after_id: str | None = None
         self.analysis_after_id: str | None = None
         self.search_after_id: str | None = None
+        self.preview_after_id: str | None = None
+        self.backup_after_id: str | None = None
+        self.unlocked = True
 
         self.view_mode = tk.StringVar(value="notes")
+        self.preview_visible_var = tk.BooleanVar(value=self.settings.preview_visible)
         self.search_var = tk.StringVar()
         self.title_var = tk.StringVar()
         self.tags_var = tk.StringVar()
@@ -73,20 +141,37 @@ class SmartNotepadApp:
         self.todos_var = tk.StringVar()
         self.stats_var = tk.StringVar()
         self.suggested_title_var = tk.StringVar()
+        self.security_var = tk.StringVar()
+        self.backup_var = tk.StringVar()
 
         self._configure_style()
         self._set_window_icon()
         self._build_menu()
         self._build_layout()
         self._bind_events()
-        self._load_notes()
+        self.unlocked = self._unlock_if_needed()
+        if self.unlocked:
+            self._run_startup_backup()
+            self._load_notes()
+            self._schedule_auto_backup()
 
-        if not self.note_ids:
+        if self.unlocked and not self.note_ids:
             self._create_note()
 
     def run(self) -> None:
+        if not self.unlocked:
+            self.root.destroy()
+            return
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.mainloop()
+
+    def _set_theme(self, theme_name: str, persist: bool = True) -> None:
+        global THEME
+        self.theme_name = theme_name if theme_name in THEMES else "paper"
+        THEME = THEMES[self.theme_name].copy()
+        self.settings.theme_name = self.theme_name
+        if persist:
+            self._save_settings()
 
     def _configure_style(self) -> None:
         style = ttk.Style(self.root)
@@ -144,6 +229,16 @@ class SmartNotepadApp:
         view_menu.add_command(label="Notas", accelerator="Ctrl+1", command=lambda: self._set_view_mode("notes"))
         view_menu.add_command(label="Lixeira", accelerator="Ctrl+2", command=lambda: self._set_view_mode("trash"))
         view_menu.add_command(label="Buscar", accelerator="Ctrl+F", command=self._focus_search)
+        view_menu.add_checkbutton(
+            label="Mostrar preview Markdown",
+            accelerator="Ctrl+P",
+            variable=self.preview_visible_var,
+            command=self._apply_preview_visibility,
+        )
+        theme_menu = tk.Menu(view_menu, tearoff=False)
+        for theme_key, theme in THEMES.items():
+            theme_menu.add_command(label=str(theme["name"]), command=lambda key=theme_key: self._change_theme(key))
+        view_menu.add_cascade(label="Tema", menu=theme_menu)
         view_menu.add_command(label="Atualizar", accelerator="F5", command=self._refresh_notes)
         menu_bar.add_cascade(label="Visualizar", menu=view_menu)
 
@@ -159,6 +254,14 @@ class SmartNotepadApp:
         trash_menu.add_command(label="Apagar nota definitivamente", command=self._delete_current_note_forever)
         trash_menu.add_command(label="Esvaziar lixeira", command=self._empty_trash)
         menu_bar.add_cascade(label="Lixeira", menu=trash_menu)
+
+        tools_menu = tk.Menu(menu_bar, tearoff=False)
+        tools_menu.add_command(label="Criar backup agora", command=self._create_backup_now)
+        tools_menu.add_command(label="Abrir pasta de backups", command=self._open_backup_folder)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="Ativar protecao por senha", command=self._enable_encryption)
+        tools_menu.add_command(label="Desativar protecao por senha", command=self._disable_encryption)
+        menu_bar.add_cascade(label="Ferramentas", menu=tools_menu)
 
         help_menu = tk.Menu(menu_bar, tearoff=False)
         help_menu.add_command(label="Ver atalhos", command=self._show_shortcuts)
@@ -211,6 +314,8 @@ class SmartNotepadApp:
         actions.pack(side=tk.RIGHT)
         ttk.Button(actions, text=f"{ICONS['new']} Nova", style="Accent.TButton", command=self._create_note).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(actions, text=f"{ICONS['save']} Salvar", style="Toolbar.TButton", command=self._save_current_note).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(actions, text=f"{ICONS['preview']} Preview", style="Toolbar.TButton", command=self._toggle_preview).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(actions, text=f"{ICONS['backup']} Backup", style="Toolbar.TButton", command=self._create_backup_now).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(actions, text=f"{ICONS['export']} Exportar", style="Toolbar.TButton", command=self._export_markdown).pack(side=tk.LEFT)
 
     def _panel(self, parent: tk.Misc, width: int | None = None) -> tk.Frame:
@@ -272,6 +377,25 @@ class SmartNotepadApp:
             padx=14,
         )
         hint.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(
+            parent,
+            textvariable=self.security_var,
+            bg=THEME["panel_bg"],
+            fg=THEME["muted"],
+            justify=tk.LEFT,
+            wraplength=285,
+            padx=14,
+        ).pack(fill=tk.X, pady=(0, 4))
+        tk.Label(
+            parent,
+            textvariable=self.backup_var,
+            bg=THEME["panel_bg"],
+            fg=THEME["muted"],
+            justify=tk.LEFT,
+            wraplength=285,
+            padx=14,
+        ).pack(fill=tk.X, pady=(0, 8))
 
         list_frame = tk.Frame(parent, bg=THEME["panel_bg"], padx=14)
         list_frame.pack(fill=tk.BOTH, expand=True)
@@ -372,8 +496,16 @@ class SmartNotepadApp:
         middle.add(editor_frame, weight=4)
         middle.add(smart_frame, weight=1)
 
+        self.editor_split = ttk.PanedWindow(editor_frame, orient=tk.HORIZONTAL)
+        self.editor_split.pack(fill=tk.BOTH, expand=True)
+
+        self.editor_column = tk.Frame(self.editor_split, bg=THEME["panel_bg"])
+        self.preview_column = tk.Frame(self.editor_split, bg=THEME["panel_bg"])
+        self.editor_split.add(self.editor_column, weight=3)
+        self.editor_split.add(self.preview_column, weight=2)
+
         self.editor = tk.Text(
-            editor_frame,
+            self.editor_column,
             wrap=tk.WORD,
             undo=True,
             bd=0,
@@ -390,10 +522,44 @@ class SmartNotepadApp:
             highlightcolor=THEME["accent"],
             highlightthickness=1,
         )
-        editor_scroll = ttk.Scrollbar(editor_frame, orient=tk.VERTICAL, command=self.editor.yview)
+        editor_scroll = ttk.Scrollbar(self.editor_column, orient=tk.VERTICAL, command=self.editor.yview)
         self.editor.configure(yscrollcommand=editor_scroll.set)
         self.editor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         editor_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        preview_header = tk.Frame(self.preview_column, bg=THEME["panel_bg"])
+        preview_header.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(
+            preview_header,
+            text="Preview Markdown",
+            bg=THEME["panel_bg"],
+            fg=THEME["ink"],
+            font=("Segoe UI Semibold", 10),
+        ).pack(side=tk.LEFT)
+        ttk.Button(preview_header, text="Ocultar", style="Soft.TButton", command=self._toggle_preview).pack(side=tk.RIGHT)
+
+        self.preview = tk.Text(
+            self.preview_column,
+            wrap=tk.WORD,
+            bd=0,
+            relief=tk.FLAT,
+            bg=THEME["preview_bg"],
+            fg=THEME["ink"],
+            padx=16,
+            pady=16,
+            highlightbackground=THEME["line"],
+            highlightcolor=THEME["accent"],
+            highlightthickness=1,
+            font=("Segoe UI", 11),
+            state=tk.DISABLED,
+        )
+        preview_scroll = ttk.Scrollbar(self.preview_column, orient=tk.VERTICAL, command=self.preview.yview)
+        self.preview.configure(yscrollcommand=preview_scroll.set)
+        self.preview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        preview_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._configure_preview_tags()
+        if not self.preview_visible_var.get():
+            self.editor_split.forget(self.preview_column)
 
         self._build_smart_panel(smart_frame)
 
@@ -425,6 +591,8 @@ class SmartNotepadApp:
         self.root.bind_all("<Control-f>", lambda event: self._event(event, self._focus_search))
         self.root.bind_all("<Control-e>", lambda event: self._event(event, self._export_markdown))
         self.root.bind_all("<Control-i>", lambda event: self._event(event, self._import_text))
+        self.root.bind_all("<Control-p>", lambda event: self._event(event, self._toggle_preview))
+        self.root.bind_all("<Control-b>", lambda event: self._event(event, self._create_backup_now))
         self.root.bind_all("<Control-l>", lambda event: self._event(event, self._apply_suggested_title))
         self.root.bind_all("<Control-Shift-T>", lambda event: self._event(event, self._apply_suggested_tags))
         self.root.bind_all("<Control-Key-1>", lambda event: self._event(event, lambda: self._set_view_mode("notes")))
@@ -499,6 +667,7 @@ class SmartNotepadApp:
         self.loading = False
         self._set_editor_editable(not self.current_note_deleted)
         self._refresh_analysis()
+        self._refresh_preview()
         self._update_note_meta(note)
         self._update_sidebar_actions()
         self.status_var.set(f"Editando: {note.title}" if not self.current_note_deleted else f"Na lixeira: {note.title}")
@@ -513,6 +682,7 @@ class SmartNotepadApp:
         self._set_editor_editable(False)
         self.note_meta_var.set("Nenhuma nota selecionada.")
         self._refresh_analysis()
+        self._refresh_preview()
 
     def _set_editor_editable(self, editable: bool) -> None:
         state = tk.NORMAL if editable else tk.DISABLED
@@ -539,6 +709,7 @@ class SmartNotepadApp:
         self.editor.edit_modified(False)
         self._schedule_save()
         self._schedule_analysis()
+        self._schedule_preview()
 
     def _on_metadata_changed(self, *_args: object) -> None:
         if self.loading or self.current_note_deleted:
@@ -562,6 +733,11 @@ class SmartNotepadApp:
         if self.analysis_after_id:
             self.root.after_cancel(self.analysis_after_id)
         self.analysis_after_id = self.root.after(220, self._refresh_analysis)
+
+    def _schedule_preview(self) -> None:
+        if self.preview_after_id:
+            self.root.after_cancel(self.preview_after_id)
+        self.preview_after_id = self.root.after(220, self._refresh_preview)
 
     def _save_current_note(self) -> None:
         if self.current_note_id is None or self.loading or self.current_note_deleted:
@@ -706,6 +882,53 @@ class SmartNotepadApp:
         self.tags_var.set(", ".join(merged))
         self._save_current_note()
 
+    def _configure_preview_tags(self) -> None:
+        self.preview.tag_configure("h1", font=("Segoe UI Semibold", 20), foreground=THEME["accent"], spacing3=10)
+        self.preview.tag_configure("h2", font=("Segoe UI Semibold", 16), foreground=THEME["accent"], spacing3=8)
+        self.preview.tag_configure("h3", font=("Segoe UI Semibold", 13), foreground=THEME["ink"], spacing3=6)
+        self.preview.tag_configure("paragraph", font=("Segoe UI", 11), foreground=THEME["ink"], spacing3=5)
+        self.preview.tag_configure("muted", foreground=THEME["muted"])
+        self.preview.tag_configure("bullet", lmargin1=18, lmargin2=34, foreground=THEME["ink"], spacing3=4)
+        self.preview.tag_configure("quote", lmargin1=18, lmargin2=18, foreground=THEME["muted"], background=THEME["panel_alt"], spacing1=4, spacing3=4)
+        self.preview.tag_configure("code", font=("Cascadia Mono", 10), background=THEME["panel_alt"], foreground=THEME["ink"], lmargin1=12, lmargin2=12, spacing1=4, spacing3=4)
+        self.preview.tag_configure("rule", foreground=THEME["line"], spacing1=4, spacing3=4)
+        self.preview.tag_configure("done", foreground=THEME["muted"], overstrike=True)
+
+    def _refresh_preview(self) -> None:
+        if not hasattr(self, "preview"):
+            return
+        blocks = parse_markdown(self._editor_content())
+        self.preview.configure(state=tk.NORMAL)
+        self.preview.delete("1.0", tk.END)
+        if not blocks:
+            self.preview.insert(tk.END, "A preview Markdown aparece aqui enquanto voce escreve.", "muted")
+        for block in blocks:
+            self._insert_preview_block(block)
+        self.preview.configure(state=tk.DISABLED)
+
+    def _insert_preview_block(self, block: MarkdownBlock) -> None:
+        if block.kind == "blank":
+            self.preview.insert(tk.END, "\n")
+        elif block.kind == "heading":
+            tag = "h1" if block.level == 1 else "h2" if block.level == 2 else "h3"
+            self.preview.insert(tk.END, f"{block.text}\n", tag)
+        elif block.kind == "checkbox":
+            marker = "[x]" if block.checked else "[ ]"
+            tag = "done" if block.checked else "bullet"
+            self.preview.insert(tk.END, f"{marker} {block.text}\n", tag)
+        elif block.kind == "bullet":
+            self.preview.insert(tk.END, f"- {block.text}\n", "bullet")
+        elif block.kind == "ordered":
+            self.preview.insert(tk.END, f"1. {block.text}\n", "bullet")
+        elif block.kind == "quote":
+            self.preview.insert(tk.END, f"{block.text}\n", "quote")
+        elif block.kind == "code":
+            self.preview.insert(tk.END, f"{block.text}\n", "code")
+        elif block.kind == "rule":
+            self.preview.insert(tk.END, "-" * 48 + "\n", "rule")
+        else:
+            self.preview.insert(tk.END, f"{block.text}\n", "paragraph")
+
     def _refresh_analysis(self) -> None:
         analysis = analyze_note(self._editor_content())
         self._render_analysis(analysis)
@@ -772,12 +995,215 @@ class SmartNotepadApp:
         else:
             self.counter_var.set(f"{count} nota(s)")
             self.mode_hint_var.set("Notas ativas. Use Ctrl+F para buscar e Ctrl+Shift+Delete para mover para a lixeira.")
+        self._update_status_panels()
 
     def _update_note_meta(self, note: Note) -> None:
         if note.deleted_at:
             self.note_meta_var.set(f"Na lixeira desde {note.deleted_at} | criada em {note.created_at}")
         else:
             self.note_meta_var.set(f"Atualizada em {note.updated_at} | criada em {note.created_at}")
+
+    def _toggle_preview(self) -> None:
+        self.preview_visible_var.set(not self.preview_visible_var.get())
+        self._apply_preview_visibility()
+
+    def _apply_preview_visibility(self) -> None:
+        visible = self.preview_visible_var.get()
+        self.settings.preview_visible = visible
+        self._save_settings()
+        panes = set(self.editor_split.panes()) if hasattr(self, "editor_split") else set()
+        preview_name = str(self.preview_column) if hasattr(self, "preview_column") else ""
+        if visible and preview_name not in panes:
+            self.editor_split.add(self.preview_column, weight=2)
+            self._refresh_preview()
+        elif not visible and preview_name in panes:
+            self.editor_split.forget(self.preview_column)
+        self.status_var.set("Preview Markdown ativado" if visible else "Preview Markdown ocultado")
+
+    def _change_theme(self, theme_name: str) -> None:
+        self._set_theme(theme_name)
+        self.root.configure(bg=THEME["app_bg"])
+        self._configure_style()
+        self._repaint_widget_tree(self.root)
+        self._configure_preview_tags()
+        self._update_mode_buttons()
+        self._refresh_preview()
+        self.status_var.set(f"Tema aplicado: {THEMES[self.theme_name]['name']}")
+
+    def _repaint_widget_tree(self, widget: tk.Misc) -> None:
+        widget_class = widget.winfo_class()
+        try:
+            if widget is self.root:
+                widget.configure(bg=THEME["app_bg"])
+            elif isinstance(widget, tk.Text):
+                if widget is getattr(self, "editor", None):
+                    widget.configure(
+                        bg=THEME["editor_bg"],
+                        fg=THEME["ink"],
+                        insertbackground=THEME["ink"],
+                        selectbackground=THEME["selection"],
+                        highlightbackground=THEME["line"],
+                        highlightcolor=THEME["accent"],
+                    )
+                elif widget is getattr(self, "preview", None):
+                    widget.configure(
+                        bg=THEME["preview_bg"],
+                        fg=THEME["ink"],
+                        highlightbackground=THEME["line"],
+                        highlightcolor=THEME["accent"],
+                    )
+            elif isinstance(widget, tk.Listbox):
+                widget.configure(
+                    bg=THEME["editor_bg"],
+                    fg=THEME["ink"],
+                    selectbackground=THEME["accent"],
+                    selectforeground="#ffffff",
+                    highlightbackground=THEME["line"],
+                )
+            elif isinstance(widget, tk.Entry):
+                widget.configure(
+                    bg=THEME["editor_bg"],
+                    fg=THEME["ink"],
+                    insertbackground=THEME["ink"],
+                    highlightbackground=THEME["line"],
+                    highlightcolor=THEME["accent"],
+                )
+            elif isinstance(widget, tk.Label):
+                widget.configure(bg=THEME["panel_bg"], fg=THEME["ink"])
+            elif isinstance(widget, tk.Frame):
+                widget.configure(bg=THEME["panel_bg"], highlightbackground=THEME["line"])
+            elif isinstance(widget, tk.Button):
+                widget.configure(bg=THEME["panel_alt"], fg=THEME["ink"], activebackground=THEME["accent_soft"])
+        except tk.TclError:
+            pass
+
+        for child in widget.winfo_children():
+            self._repaint_widget_tree(child)
+
+    def _save_settings(self) -> None:
+        if self.settings_store:
+            self.settings_store.save(self.settings)
+
+    def _unlock_if_needed(self) -> bool:
+        if not self.settings.encryption_enabled:
+            self.repository.set_password(None)
+            self._update_status_panels()
+            return True
+
+        for _attempt in range(3):
+            password = simpledialog.askstring("Notas protegidas", "Digite a senha das notas:", show="*", parent=self.root)
+            if password is None:
+                return False
+            if verify_password(password, self.settings.password_record):
+                self.repository.set_password(password)
+                self._update_status_panels()
+                return True
+            messagebox.showerror("Senha incorreta", "A senha informada nao desbloqueou as notas.")
+        return False
+
+    def _prompt_new_password(self) -> str | None:
+        password = simpledialog.askstring("Criar senha", "Digite uma senha para proteger as notas:", show="*", parent=self.root)
+        if not password:
+            return None
+        confirmation = simpledialog.askstring("Confirmar senha", "Digite a senha novamente:", show="*", parent=self.root)
+        if password != confirmation:
+            messagebox.showerror("Senhas diferentes", "As senhas nao conferem.")
+            return None
+        if len(password) < 8:
+            messagebox.showerror("Senha curta", "Use pelo menos 8 caracteres.")
+            return None
+        return password
+
+    def _enable_encryption(self, password: str | None = None) -> None:
+        if self.settings.encryption_enabled:
+            self.status_var.set("A protecao por senha ja esta ativa")
+            return
+        password = password or self._prompt_new_password()
+        if not password:
+            return
+        self._save_current_note()
+        self._create_backup_now("antes-criptografia")
+        self.repository.encrypt_all_notes(password)
+        self.repository.set_password(password)
+        self.settings.encryption_enabled = True
+        self.settings.password_record = create_password_record(password)
+        self._save_settings()
+        self._load_notes(self.current_note_id)
+        self._update_status_panels()
+        self.status_var.set("Protecao por senha ativada")
+
+    def _disable_encryption(self, password: str | None = None) -> None:
+        if not self.settings.encryption_enabled:
+            self.status_var.set("A protecao por senha ja esta desativada")
+            return
+        password = password or simpledialog.askstring("Desativar protecao", "Digite a senha atual:", show="*", parent=self.root)
+        if not password:
+            return
+        if not verify_password(password, self.settings.password_record):
+            messagebox.showerror("Senha incorreta", "A senha informada esta incorreta.")
+            return
+        self._save_current_note()
+        self._create_backup_now("antes-descriptografia")
+        self.repository.decrypt_all_notes(password)
+        self.repository.set_password(None)
+        self.settings.encryption_enabled = False
+        self.settings.password_record = None
+        self._save_settings()
+        self._load_notes(self.current_note_id)
+        self._update_status_panels()
+        self.status_var.set("Protecao por senha desativada")
+
+    def _create_backup_now(self, reason: str = "manual") -> None:
+        self._save_current_note()
+        if not self.backup_manager:
+            self.status_var.set("Backup indisponivel neste ambiente")
+            return
+        backup = self.backup_manager.create_backup(reason)
+        if backup:
+            self.status_var.set(f"Backup criado: {backup.name}")
+        else:
+            self.status_var.set("Nenhum banco encontrado para backup")
+        self._update_status_panels()
+
+    def _run_startup_backup(self) -> None:
+        if not self.backup_manager or not self.settings.backup_enabled:
+            self._update_status_panels()
+            return
+        backup = self.backup_manager.create_backup_if_due(self.settings.backup_interval_minutes, "auto")
+        if backup:
+            self.status_var.set(f"Backup automatico criado: {backup.name}")
+        self._update_status_panels()
+
+    def _schedule_auto_backup(self) -> None:
+        if not self.settings.backup_enabled:
+            return
+        interval_ms = max(1, self.settings.backup_interval_minutes) * 60 * 1000
+        self.backup_after_id = self.root.after(interval_ms, self._auto_backup_tick)
+
+    def _auto_backup_tick(self) -> None:
+        self._run_startup_backup()
+        self._schedule_auto_backup()
+
+    def _open_backup_folder(self) -> None:
+        if not self.backup_manager:
+            return
+        folder = self.backup_manager.backup_dir
+        folder.mkdir(parents=True, exist_ok=True)
+        if sys.platform.startswith("win"):
+            os.startfile(folder)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(folder)])
+        else:
+            subprocess.Popen(["xdg-open", str(folder)])
+
+    def _update_status_panels(self) -> None:
+        self.security_var.set("Seguranca: senha ativa" if self.settings.encryption_enabled else "Seguranca: sem senha")
+        if self.backup_manager:
+            latest = self.backup_manager.latest_backup()
+            label = latest.name if latest else "nenhum backup ainda"
+            self.backup_var.set(f"Backup: {label}")
+        else:
+            self.backup_var.set("Backup: indisponivel")
 
     def _focus_search(self) -> None:
         self.search_entry.focus_set()
@@ -797,6 +1223,8 @@ class SmartNotepadApp:
                     "Ctrl+F - buscar",
                     "Ctrl+E - exportar Markdown",
                     "Ctrl+I - importar texto",
+                    "Ctrl+P - mostrar/ocultar preview Markdown",
+                    "Ctrl+B - criar backup agora",
                     "Ctrl+1 - ver notas",
                     "Ctrl+2 - ver lixeira",
                     "Ctrl+L - usar titulo sugerido",
@@ -827,4 +1255,6 @@ class SmartNotepadApp:
 
     def _on_close(self) -> None:
         self._save_current_note()
+        if self.backup_manager and self.settings.backup_enabled:
+            self.backup_manager.create_backup_if_due(self.settings.backup_interval_minutes, "fechamento")
         self.root.destroy()

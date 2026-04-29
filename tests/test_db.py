@@ -88,6 +88,37 @@ class NotesRepositoryTests(unittest.TestCase):
             self.assertEqual(repository.list_notes(), [])
             self.assertEqual([item.id for item in repository.list_notes(only_deleted=True)], [note.id])
 
+    def test_encrypts_and_decrypts_all_notes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_path = Path(temp_dir) / "notes.sqlite3"
+            repository = NotesRepository(database_path)
+            note = repository.create_note("Privada", "Conteudo secreto", ["segredo"])
+
+            repository.encrypt_all_notes("senha-forte")
+            repository.set_password("senha-forte")
+            encrypted_note = repository.get_note(note.id)
+
+            self.assertEqual(encrypted_note.title, "Privada")
+            self.assertEqual(encrypted_note.content, "Conteudo secreto")
+            self.assertEqual(encrypted_note.tags, ["segredo"])
+            self.assertEqual([item.id for item in repository.list_notes("secreto")], [note.id])
+
+            connection = sqlite3.connect(database_path)
+            try:
+                raw = connection.execute("SELECT title, content, tags FROM notes WHERE id = ?", (note.id,)).fetchone()
+            finally:
+                connection.close()
+            self.assertTrue(str(raw[0]).startswith("sni1:"))
+            self.assertTrue(str(raw[1]).startswith("sni1:"))
+            self.assertTrue(str(raw[2]).startswith("sni1:"))
+
+            repository.decrypt_all_notes("senha-forte")
+            repository.set_password(None)
+            decrypted = repository.get_note(note.id)
+
+            self.assertEqual(decrypted.title, "Privada")
+            self.assertEqual(decrypted.content, "Conteudo secreto")
+
 
 if __name__ == "__main__":
     unittest.main()

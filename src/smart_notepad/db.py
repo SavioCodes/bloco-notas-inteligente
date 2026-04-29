@@ -5,13 +5,18 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .models import Note, utc_now_iso
+from .security import decrypt_text, encrypt_text, is_encrypted
 
 
 class NotesRepository:
-    def __init__(self, database_path: Path) -> None:
+    def __init__(self, database_path: Path, password: str | None = None) -> None:
         self.database_path = Path(database_path)
+        self.password = password
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._setup()
+
+    def set_password(self, password: str | None) -> None:
+        self.password = password
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -51,14 +56,14 @@ class NotesRepository:
 
     def create_note(self, title: str = "Nota sem titulo", content: str = "", tags: list[str] | None = None) -> Note:
         now = utc_now_iso()
-        normalized_tags = self._normalize_tags(tags or [])
+        stored_title, stored_content, stored_tags = self._prepare_for_storage(title.strip() or "Nota sem titulo", content, tags or [])
         with self._connect() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO notes (title, content, tags, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (title.strip() or "Nota sem titulo", content, json.dumps(normalized_tags), now, now),
+                (stored_title, stored_content, stored_tags, now, now),
             )
             note_id = int(cursor.lastrowid)
         return self.get_note(note_id)
@@ -80,11 +85,6 @@ class NotesRepository:
         elif not include_deleted:
             conditions.append("deleted_at IS NULL")
 
-        if search:
-            like = f"%{search}%"
-            conditions.append("(title LIKE ? OR content LIKE ? OR tags LIKE ?)")
-            parameters.extend([like, like, like])
-
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
         with self._connect() as connection:
@@ -92,10 +92,20 @@ class NotesRepository:
                 f"SELECT * FROM notes {where_clause} ORDER BY updated_at DESC, id DESC",
                 parameters,
             ).fetchall()
-        return [self._row_to_note(row) for row in rows]
+        notes = [self._row_to_note(row) for row in rows]
+        if search:
+            needle = search.casefold()
+            notes = [
+                note
+                for note in notes
+                if needle in note.title.casefold()
+                or needle in note.content.casefold()
+                or any(needle in tag.casefold() for tag in note.tags)
+            ]
+        return notes
 
     def update_note(self, note_id: int, title: str, content: str, tags: list[str]) -> Note:
-        normalized_tags = self._normalize_tags(tags)
+        stored_title, stored_content, stored_tags = self._prepare_for_storage(title.strip() or "Nota sem titulo", content, tags)
         now = utc_now_iso()
         with self._connect() as connection:
             connection.execute(
@@ -104,7 +114,7 @@ class NotesRepository:
                 SET title = ?, content = ?, tags = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (title.strip() or "Nota sem titulo", content, json.dumps(normalized_tags), now, note_id),
+                (stored_title, stored_content, stored_tags, now, note_id),
             )
         return self.get_note(note_id)
 
@@ -137,6 +147,62 @@ class NotesRepository:
             cursor = connection.execute("DELETE FROM notes WHERE deleted_at IS NOT NULL")
             return int(cursor.rowcount)
 
+    def encrypt_all_notes(self, password: str) -> None:
+        previous_password = self.password
+        self.password = password
+        try:
+            notes = self.list_notes(include_deleted=True)
+            with self._connect() as connection:
+                for note in notes:
+                    stored_title, stored_content, stored_tags = self._prepare_for_storage(note.title, note.content, note.tags)
+                    connection.execute(
+                        "UPDATE notes SET title = ?, content = ?, tags = ? WHERE id = ?",
+                        (stored_title, stored_content, stored_tags, note.id),
+                    )
+        except Exception:
+            self.password = previous_password
+            raise
+
+    def decrypt_all_notes(self, password: str) -> None:
+        previous_password = self.password
+        self.password = password
+        try:
+            notes = self.list_notes(include_deleted=True)
+            with self._connect() as connection:
+                for note in notes:
+                    connection.execute(
+                        "UPDATE notes SET title = ?, content = ?, tags = ? WHERE id = ?",
+                        (note.title, note.content, json.dumps(self._normalize_tags(note.tags)), note.id),
+                    )
+        finally:
+            self.password = previous_password
+
+    def _prepare_for_storage(self, title: str, content: str, tags: list[str]) -> tuple[str, str, str]:
+        normalized_tags = self._normalize_tags(tags)
+        serialized_tags = json.dumps(normalized_tags)
+        if not self.password:
+            return title, content, serialized_tags
+        return (
+            encrypt_text(title, self.password),
+            encrypt_text(content, self.password),
+            encrypt_text(serialized_tags, self.password),
+        )
+
+    def _decode_text(self, value: str, fallback: str = "") -> str:
+        if not is_encrypted(value):
+            return value
+        if not self.password:
+            return fallback
+        return decrypt_text(value, self.password)
+
+    def _decode_tags(self, value: str) -> list[str]:
+        decoded = self._decode_text(value, "[]")
+        try:
+            tags = json.loads(decoded)
+        except json.JSONDecodeError:
+            tags = []
+        return list(tags)
+
     @staticmethod
     def _normalize_tags(tags: list[str]) -> list[str]:
         seen: set[str] = set()
@@ -148,17 +214,15 @@ class NotesRepository:
                 normalized.append(clean)
         return normalized
 
-    @staticmethod
-    def _row_to_note(row: sqlite3.Row) -> Note:
-        try:
-            tags = json.loads(row["tags"])
-        except json.JSONDecodeError:
-            tags = []
+    def _row_to_note(self, row: sqlite3.Row) -> Note:
+        title = self._decode_text(str(row["title"]), "Nota protegida")
+        content = self._decode_text(str(row["content"]), "")
+        tags = self._decode_tags(str(row["tags"]))
         return Note(
             id=int(row["id"]),
-            title=str(row["title"]),
-            content=str(row["content"]),
-            tags=list(tags),
+            title=title,
+            content=content,
+            tags=tags,
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
             deleted_at=str(row["deleted_at"]) if row["deleted_at"] is not None else None,

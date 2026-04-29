@@ -27,6 +27,10 @@ acidental de notas.
 - Interface organizada com barra de acoes, paineis e atalhos.
 - Busca por titulo, conteudo e tags.
 - Painel inteligente local com resumo, titulo sugerido, tags, palavras-chave e tarefas.
+- Preview Markdown formatado lado a lado.
+- Temas `Papel/caderno`, `Claro` e `Escuro`.
+- Backup automatico do banco SQLite com retencao.
+- Protecao opcional por senha para criptografar notas localmente.
 - Lixeira recuperavel antes de apagar definitivamente.
 - Importacao de `.txt` e `.md`.
 - Exportacao Markdown.
@@ -72,6 +76,8 @@ sudo apt install python3-tk
 | `Ctrl+F` | Buscar |
 | `Ctrl+E` | Exportar Markdown |
 | `Ctrl+I` | Importar texto |
+| `Ctrl+P` | Mostrar/ocultar preview Markdown |
+| `Ctrl+B` | Criar backup agora |
 | `Ctrl+1` | Ver notas |
 | `Ctrl+2` | Ver lixeira |
 | `Ctrl+Shift+Delete` | Mover para lixeira |
@@ -155,6 +161,7 @@ export SMART_NOTEPAD_HOME="/caminho/para/dados"
 - `docs/ATALHOS_E_LIXEIRA.md`
 - `docs/GUIA_WINDOWS_LINUX.md`
 - `docs/EMPACOTAMENTO_WINDOWS.md`
+- `docs/PREVIEW_BACKUP_TEMAS_SEGURANCA.md`
 - `docs/COMO_TESTAR.md`
 - `docs/ROADMAP.md`
 - `CHANGELOG.md`
@@ -165,7 +172,7 @@ export SMART_NOTEPAD_HOME="/caminho/para/dados"
 - Backup automatico.
 - Empacotamento com PyInstaller.
 - Criptografia local opcional.
-- Temas configuraveis.
+- Melhorias no editor Markdown.
 - IA local/API opcional com consentimento do usuario.
 
 ## Licenca

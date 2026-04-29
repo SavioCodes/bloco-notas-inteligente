@@ -15,6 +15,9 @@
 ## Versao 0.2
 
 - Preview Markdown.
+- Backup automatico.
+- Temas claro, escuro e papel/caderno.
+- Protecao opcional por senha.
 - Atalhos de teclado configuraveis.
 - Melhor editor de tags.
 - Componentes de interface separados em arquivos menores.
@@ -22,10 +25,10 @@
 
 ## Versao 0.3
 
-- Criptografia local opcional.
-- Backup automatico.
-- Tema claro/escuro.
 - Empacotamento para Windows e Linux.
+- Atalhos de teclado configuraveis.
+- Melhor editor de tags.
+- Componentes de interface separados em arquivos menores.
 
 ## Versao 0.4
 

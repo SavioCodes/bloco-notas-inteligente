@@ -21,6 +21,10 @@ para evoluir para sincronizacao, criptografia, plugins e IA local ou via API.
 - Salvar notas em SQLite.
 - Usar interface desktop com Tkinter.
 - Melhorar organizacao visual com barra de acoes, paineis e atalhos.
+- Mostrar preview Markdown formatada.
+- Criar backups automaticos do banco SQLite.
+- Permitir temas claro, escuro e papel/caderno.
+- Permitir protecao opcional por senha.
 - Detectar palavras-chave, tarefas e estatisticas de texto.
 - Sugerir titulo e tags com regras locais.
 - Exportar nota em Markdown.
@@ -71,4 +75,7 @@ para evoluir para sincronizacao, criptografia, plugins e IA local ou via API.
 - O painel inteligente atualiza enquanto o usuario escreve.
 - Excluir uma nota move para a lixeira e permite restaurar.
 - Apagar definitivo fica separado e exige confirmacao.
+- Preview Markdown renderiza estruturas comuns.
+- Backup automatico e backup manual criam copias consistentes.
+- Protecao por senha criptografa titulo, conteudo e tags.
 - Os testes automatizados passam.

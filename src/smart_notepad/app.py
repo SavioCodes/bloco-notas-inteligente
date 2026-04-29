@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 
 from . import __version__
-from .config import get_database_path
+from .backup import BackupManager
+from .config import get_backup_dir, get_database_path, get_settings_path
 from .db import NotesRepository
+from .settings import SettingsStore
 from .ui import SmartNotepadApp
 
 
@@ -28,6 +30,10 @@ def main(argv: list[str] | None = None) -> None:
         print("Smoke test OK.")
         return
 
-    repository = NotesRepository(get_database_path())
-    app = SmartNotepadApp(repository)
+    database_path = get_database_path()
+    settings_store = SettingsStore(get_settings_path())
+    settings = settings_store.load()
+    repository = NotesRepository(database_path)
+    backup_manager = BackupManager(database_path, get_backup_dir(), retention=settings.backup_retention)
+    app = SmartNotepadApp(repository, settings_store=settings_store, backup_manager=backup_manager)
     app.run()

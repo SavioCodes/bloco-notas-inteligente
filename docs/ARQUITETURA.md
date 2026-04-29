@@ -8,6 +8,10 @@ O projeto usa uma arquitetura simples em camadas:
 - Aplicacao: `app.py`
 - Persistencia: `db.py`
 - Inteligencia local: `intelligence.py`
+- Preview Markdown: `markdown_preview.py`
+- Backups: `backup.py`
+- Configuracoes: `settings.py`
+- Protecao por senha: `security.py`
 - Modelo de dados: `models.py`
 - Configuracao de caminhos: `config.py`
 
@@ -68,6 +72,22 @@ O modulo `intelligence.py` faz analise sem rede:
 - Sugere tags.
 - Calcula estatisticas.
 - Gera uma sugestao de titulo.
+
+## Backups
+
+O modulo `backup.py` cria copias consistentes do SQLite usando a API nativa de
+backup do SQLite. Os backups ficam em `backups/` dentro da pasta de dados do app
+e seguem uma politica simples de retencao.
+
+## Protecao por senha
+
+Quando ativada, a protecao por senha criptografa titulo, conteudo e tags das
+notas no banco SQLite. Antes de ativar ou desativar a protecao, o app cria um
+backup do banco.
+
+A implementacao usa PBKDF2-HMAC-SHA256 para derivacao de chave e autenticacao
+HMAC para detectar senha incorreta ou alteracao dos dados. E uma protecao local
+inicial e nao substitui criptografia de disco auditada para cenarios criticos.
 
 ## Evolucao recomendada
 

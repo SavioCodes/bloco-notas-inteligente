@@ -6,6 +6,7 @@ from pathlib import Path
 APP_DIR_NAME = "BlocoNotasInteligente"
 LINUX_APP_DIR_NAME = "bloco-notas-inteligente"
 DATABASE_NAME = "notes.sqlite3"
+SETTINGS_NAME = "settings.json"
 
 
 def get_data_dir() -> Path:
@@ -27,3 +28,12 @@ def get_data_dir() -> Path:
 def get_database_path() -> Path:
     return get_data_dir() / DATABASE_NAME
 
+
+def get_settings_path() -> Path:
+    return get_data_dir() / SETTINGS_NAME
+
+
+def get_backup_dir() -> Path:
+    backup_dir = get_data_dir() / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir

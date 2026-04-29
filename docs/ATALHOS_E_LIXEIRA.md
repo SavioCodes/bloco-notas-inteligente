@@ -9,6 +9,8 @@
 | `Ctrl+F` | Focar busca |
 | `Ctrl+E` | Exportar Markdown |
 | `Ctrl+I` | Importar texto |
+| `Ctrl+P` | Mostrar ou ocultar preview Markdown |
+| `Ctrl+B` | Criar backup agora |
 | `Ctrl+1` | Mostrar notas ativas |
 | `Ctrl+2` | Mostrar lixeira |
 | `Ctrl+L` | Usar titulo sugerido |

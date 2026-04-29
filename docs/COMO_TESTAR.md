@@ -10,6 +10,8 @@ O jeito mais facil e usar os arquivos na pasta principal do projeto.
 4. Feche o app e abra de novo para confirmar que a nota ficou salva.
 5. Teste `Ctrl+Shift+Delete` para mover a nota para a lixeira.
 6. Entre na aba `Lixeira` ou use `Ctrl+2` e restaure com `Ctrl+Shift+R`.
+7. Use `Ctrl+P` para mostrar/ocultar a preview Markdown.
+8. Use `Ctrl+B` para criar um backup manual.
 
 ## Se aparecer erro
 
@@ -28,6 +30,15 @@ Erros comuns:
 3. Abra `Lixeira`.
 4. Clique em `Restaurar nota`.
 5. Volte para `Notas` e confirme que a nota apareceu de novo.
+
+## Teste rapido dos novos recursos
+
+1. Escreva uma nota com `# Titulo`, `- [ ] tarefa` e `> citacao`.
+2. Confirme que a preview Markdown aparece formatada.
+3. Mude o tema pelo menu `Visualizar > Tema`.
+4. Crie backup pelo menu `Ferramentas > Criar backup agora`.
+5. Ative a protecao por senha em `Ferramentas > Ativar protecao por senha`.
+6. Feche e abra o app para confirmar que ele pede a senha.
 
 ## No Linux
 
