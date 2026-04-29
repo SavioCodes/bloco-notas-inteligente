@@ -4,6 +4,16 @@ Todas as mudancas importantes deste projeto serao documentadas aqui.
 
 O formato segue a ideia de Keep a Changelog e o versionamento segue SemVer.
 
+## [0.1.1] - 2026-04-29
+
+### Adicionado
+
+- Executavel Windows gerado com PyInstaller.
+- Smoke test automatizado do fluxo principal do usuario.
+- Comandos `--version` e `--smoke-test`.
+- Script `scripts/build_windows.ps1`.
+- Documentacao de empacotamento Windows.
+
 ## [0.1.0] - 2026-04-29
 
 ### Adicionado
@@ -19,4 +29,3 @@ O formato segue a ideia de Keep a Changelog e o versionamento segue SemVer.
 - Scripts para Windows e Linux.
 - Testes automatizados com `unittest`.
 - Documentacao inicial, templates GitHub, workflows e release inicial.
-

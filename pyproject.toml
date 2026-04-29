@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bloco-notas-inteligente"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bloco de notas inteligente, local e multiplataforma."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,9 @@ classifiers = [
 
 [project.scripts]
 bloco-notas = "smart_notepad.app:main"
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.0"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

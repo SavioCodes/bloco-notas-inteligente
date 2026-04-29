@@ -38,6 +38,12 @@ acidental de notas.
 1. Clique duas vezes em `Testar-Instalacao.bat`.
 2. Se aparecer `Tudo certo`, clique duas vezes em `Abrir-Bloco-de-Notas.bat`.
 
+Tambem e possivel baixar o `.exe` pronto na pagina de releases:
+
+```text
+https://github.com/SavioCodes/bloco-notas-inteligente/releases
+```
+
 Pelo terminal:
 
 ```powershell
@@ -79,6 +85,18 @@ Windows:
 
 ```powershell
 .\scripts\test.ps1
+```
+
+Fluxo completo de usuario:
+
+```powershell
+.\scripts\smoke_test.ps1
+```
+
+Gerar executavel Windows:
+
+```powershell
+.\scripts\build_windows.ps1
 ```
 
 Linux:
@@ -136,6 +154,7 @@ export SMART_NOTEPAD_HOME="/caminho/para/dados"
 - `docs/DECISOES_TECNICAS.md`
 - `docs/ATALHOS_E_LIXEIRA.md`
 - `docs/GUIA_WINDOWS_LINUX.md`
+- `docs/EMPACOTAMENTO_WINDOWS.md`
 - `docs/COMO_TESTAR.md`
 - `docs/ROADMAP.md`
 - `CHANGELOG.md`
