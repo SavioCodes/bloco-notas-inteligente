@@ -1,6 +1,18 @@
-<p align="center">
-  <img src="assets/smart_notepad_3d.png" alt="Smart Notepad 3D Showcase" width="650" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
-</p>
+```text
+          ┌────────────────────────────────────────┐
+         ╱                                        ╱│
+        ╱         BLOCO DE NOTAS INTELIGENTE     ╱ │
+       ╱                                        ╱  │
+      *────────────────────────────────────────*   │
+      │                                        │   │
+      │   [SQLite] ──► ACID Local Storage      │   │
+      │   [Markdown] ─► Live Side-Preview      │   │
+      │   [Security] ─► AES DB Encryption      │   │
+      │                                        │  ╱
+      │   Run local 3D render:                 │ ╱
+      │   $ python scripts/render_3d.py        │╱
+      *────────────────────────────────────────*
+```
 
 <p align="center">
   <a href="https://github.com/SavioCodes/bloco-notas-inteligente/actions/workflows/tests.yml">
@@ -97,6 +109,15 @@
     </td>
   </tr>
 </table>
+
+---
+
+<h2 align="center">📦 Modo Demo 3D no Terminal</h2>
+<p>Este repositório inclui um renderizador 3D em tempo real escrito puramente em código Python matemático. Para assistir à rotação do bloco tridimensional no seu terminal, execute:</p>
+
+```bash
+python scripts/render_3d.py
+```
 
 ---
 
